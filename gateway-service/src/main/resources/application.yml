@@ -1,0 +1,96 @@
+server:
+  port: 8000
+
+eureka:
+  instance:
+  # Eureka Server에 등록될 때 사용할 정보(인스턴스 IP, ID) 설정.
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${server.port}}
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      default-filters:
+      # 모든 라우트에 공통으로 적용할 필터 설정.
+        - name: GlobalTrackerFilter
+          args:
+            baseMessage: Spring Cloud Gateway Global Tracker Filter
+            preLogger: true
+            postLogger: true
+
+      routes:
+      # 라우팅 규칙 설정.
+        - id: user-service # 라우트 식별자.
+          uri: lb://USER-SERVICE # 요청을 포워딩할 대상 서비스 주소
+          predicates: # 어떤 요청이 해당 라우트로 매칭될지 결정하는 조건 (Path, Method)
+            - Path=/user-service/**
+            - Method=GET
+          filters: # 특정 라우트에 적용될 요청/응답 수정 필터 및 서킷브레이커 설정
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/user-service/(?<segment>.*), /${segment}
+            - AuthorizationHeaderFilter
+            - name: CircuitBreaker
+              args:
+                name: user-service
+                fallbackuri: forward:/fallback/user
+
+        - id: user-service
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/user-service/login
+            - Method=GET,POST
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/user-service/(?<segment>.*), /${segment}
+
+        - id: user-service
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/user-service/signup
+            - Method=GET,POST
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/user-service/(?<segment>.*), /${segment}
+
+        - id: department-service
+          uri: lb://DEPARTMENT-SERVICE
+          predicates:
+            - Path=/department-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/department-service/(?<segment>.*), /${segment}
+            - AuthorizationHeaderFilter
+            - name: CircuitBreaker
+              args:
+                name: department-service
+                fallbackuri: forward:/fallback/department
+
+        - id: matching-service
+          uri: lb://MATCHING-SERVICE
+          predicates:
+            - Path=/matching-service/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/matching-service/(?<segment>.*), /${segment}
+            - AuthorizationHeaderFilter
+            - name: CircuitBreaker
+              args:
+                name: matching-service
+                fallbackuri: forward:/fallback/matching
+
+management:
+  # 헬스 체크, 인포 엔드포인트 등을 외부 노출하도록 설정해 모니터링과 관리에 사용.
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+
+jwt:
+  secret: VlwEyVBsYt9V7zq57TejMnVUyzblYcfPQye08f7MGVA9XkHa
