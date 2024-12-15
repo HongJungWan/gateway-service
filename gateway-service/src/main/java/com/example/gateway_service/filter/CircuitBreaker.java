@@ -35,3 +35,4 @@ public class CircuitBreaker {
 				.timeLimiterConfig(timeLimiterConfig) // 타임아웃 설정 적용
 				.build());
 	}
+}
